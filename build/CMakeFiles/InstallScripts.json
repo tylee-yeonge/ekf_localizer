@@ -1,0 +1,7 @@
+{
+	"InstallScripts" : 
+	[
+		"/Users/yeonge/workspace/share/humble/ekf-ws/src/ekf_localizer/build/cmake_install.cmake"
+	],
+	"Parallel" : false
+}
