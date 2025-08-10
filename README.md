@@ -147,3 +147,13 @@ When the program finishes, an `ekf_result.csv` file is generated in the `build` 
 -   `imu_acc_x, imu_acc_y, imu_acc_z`: Original acceleration from IMU (m/s^2).
 -   `imu_ang_vel_x, imu_ang_vel_y, imu_ang_vel_z`: Original angular velocity from IMU (rad/s).
 -   `imu_roll, imu_pitch, imu_yaw`: Original Euler angles from IMU (rad).
+
+## Limitations
+
+### Gimbal Lock
+
+This EKF implementation uses Euler angles (roll, pitch, yaw) to represent the robot's orientation. While intuitive, this approach is susceptible to a phenomenon known as **Gimbal Lock**.
+
+-   **What it is**: Gimbal lock occurs when the pitch angle approaches ±90 degrees. In this state, the roll and yaw axes align, causing a loss of one degree of rotational freedom.
+-   **Impact**: This can lead to singularities in the mathematical transformations (e.g., in `eulerRateTransformMatrix`), resulting in unpredictable behavior or instability in the filter.
+-   **Mitigation**: The code includes some checks to warn about gimbal lock, but it does not fully resolve the underlying issue. For applications requiring large and complex rotations, switching to a quaternion-based representation for the state is recommended to avoid this problem.

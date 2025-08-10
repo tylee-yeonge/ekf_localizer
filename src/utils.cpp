@@ -8,12 +8,12 @@ Eigen::Matrix3d eulerToRotationMatrix(const Eigen::Vector3d &euler)
     double pitch = euler.y();
     double yaw = euler.z();
 
-    // Eigen의 AngleAxis를 사용하여 각 축에 대한 회전 생성
+    // Create rotation for each axis using Eigen's AngleAxis
     Eigen::AngleAxisd rollAngle(roll, Eigen::Vector3d::UnitX());
     Eigen::AngleAxisd pitchAngle(pitch, Eigen::Vector3d::UnitY());
     Eigen::AngleAxisd yawAngle(yaw, Eigen::Vector3d::UnitZ());
 
-    // 쿼터니언으로 결합 후 회전 행렬로 변환
+    // Combine into a quaternion and then convert to a rotation matrix
     Eigen::Quaterniond q = yawAngle * pitchAngle * rollAngle;
     return q.matrix();
 }
@@ -29,11 +29,11 @@ Eigen::Matrix3d eulerRateTransformMatrix(const Eigen::Vector3d &euler)
     double cos_p = std::cos(pitch);
 
     Eigen::Matrix3d transform_matrix;
-    // 짐벌락(Gimbal Lock) 방지: pitch가 90도에 가까워지면 cos(pitch)가 0이 됨
+    // Gimbal Lock Prevention: When pitch is close to 90 degrees, cos(pitch) becomes 0
     if (std::abs(cos_p) < 1e-6)
     {
         std::cerr << "Warning: Gimbal lock detected! Transformation matrix may be inaccurate." << std::endl;
-        // 불안정한 계산을 피하기 위해 근사치 또는 영행렬 반환 (실제 적용 시 정책 필요)
+        // Return an identity matrix or another approximation to avoid unstable calculations (policy needed for real application)
         return Eigen::Matrix3d::Identity();
     }
 
@@ -83,7 +83,7 @@ Eigen::Quaterniond eulerToQuaternion(const Eigen::Vector3d &euler)
 
 Eigen::Matrix3d computeEulerMeasurementJacobian(const Eigen::Vector3d &euler)
 {
-    // 수치적 미분으로 자코비안 계산
+    // Calculate Jacobian using numerical differentiation
     // h(euler) = quaternion_to_euler(euler_to_quaternion(euler))
     const double eps = 1e-6;
     Eigen::Matrix3d jacobian;
@@ -100,7 +100,7 @@ Eigen::Matrix3d computeEulerMeasurementJacobian(const Eigen::Vector3d &euler)
 
         Eigen::Vector3d diff = h_plus - h_minus;
 
-        // 각도 차이 정규화
+        // Normalize angle difference
         for (int j = 0; j < 3; j++)
         {
             while (diff(j) > M_PI)
@@ -131,17 +131,17 @@ void computeRotationMatrixDerivatives(const Eigen::Vector3d &euler,
     double sy = std::sin(yaw);
     double cy = std::cos(yaw);
 
-    // dR/droll (회전 행렬의 roll에 대한 미분)
+    // dR/droll (derivative of rotation matrix wrt roll)
     dR_droll << 0, 0, 0,
         sy * sp * cr + cy * sr, cy * cr - sy * sp * sr, -cp * sr,
         sy * sp * sr - cy * cr, cy * sr + sy * sp * cr, -cp * cr;
 
-    // dR/dpitch (회전 행렬의 pitch에 대한 미분)
+    // dR/dpitch (derivative of rotation matrix wrt pitch)
     dR_dpitch << -sy * sp, 0, -sy * cp,
         cy * sp, 0, cy * cp,
         -cp, 0, sp;
 
-    // dR/dyaw (회전 행렬의 yaw에 대한 미분)
+    // dR/dyaw (derivative of rotation matrix wrt yaw)
     dR_dyaw << -sy * cp, -cy, sy * sp,
         cy * cp, -sy, -cy * sp,
         0, 0, 0;
@@ -161,7 +161,7 @@ void computeTransformMatrixDerivatives(const Eigen::Vector3d &euler,
     double cp = std::cos(pitch);
     double tp = std::tan(pitch);
 
-    // 짐벌락 방지
+    // Gimbal lock prevention
     if (std::abs(cp) < 1e-6)
     {
         std::cerr << "Warning: Gimbal lock in transform matrix derivatives!" << std::endl;
@@ -171,12 +171,12 @@ void computeTransformMatrixDerivatives(const Eigen::Vector3d &euler,
         return;
     }
 
-    // dT/droll (변환 행렬의 roll에 대한 미분)
+    // dT/droll (derivative of transform matrix wrt roll)
     dT_droll << 0, cr * tp, -sr * tp,
         0, -sr, -cr,
         0, cr / cp, -sr / cp;
 
-    // dT/dpitch (변환 행렬의 pitch에 대한 미분)
+    // dT/dpitch (derivative of transform matrix wrt pitch)
     double sec_p = 1.0 / cp;       // sec(pitch) = 1/cos(pitch)
     double sec2_p = sec_p * sec_p; // sec^2(pitch)
 
@@ -184,7 +184,7 @@ void computeTransformMatrixDerivatives(const Eigen::Vector3d &euler,
         0, 0, 0,
         0, sr * sp * sec2_p, cr * sp * sec2_p;
 
-    // dT/dyaw (변환 행렬의 yaw에 대한 미분)
-    // T 행렬은 yaw에 의존하지 않으므로 0
+    // dT/dyaw (derivative of transform matrix wrt yaw)
+    // The T matrix does not depend on yaw, so it's zero.
     dT_dyaw = Eigen::Matrix3d::Zero();
 }

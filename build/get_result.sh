@@ -1,19 +1,19 @@
 #!/bin/bash
 clear
-# 현재 디렉토리 경로 가져오기
+# Get the current directory path
 current_dir=$(pwd)
 
-echo "코드 컴파일 시작"
+echo "Starting code compilation"
 make
 
-echo "코드 컴파일 완료"
+echo "Code compilation complete"
 
 rm $current_dir/ekf_result.csv
-echo "ekf_result.csv 파일 삭제"
+echo "ekf_result.csv file deleted"
 
-echo "ekf 시뮬레이터 실행"
+echo "Running EKF simulator"
 ./ekf_localizer
-echo "ekf_result.csv 파일 생성"
+echo "ekf_result.csv file created"
 
-echo "시각화 시작"
+echo "Starting visualization"
 python3 $current_dir/result_visualization.py

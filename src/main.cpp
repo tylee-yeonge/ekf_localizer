@@ -10,7 +10,7 @@
 
 int main()
 {
-    // 데이터 읽어오기
+    // Load data
     std::string data_path = "/Users/yeonge/workspace/share/humble/ekf-ws/src/ekf_localizer/source";
     std::vector<SensorData> sensor_data = loadAllSensorData(data_path);
 
@@ -23,7 +23,7 @@ int main()
     std::cout << "Successfully loaded " << sensor_data.size() << " sensor data points" << std::endl;
     std::cout << "Time range: " << sensor_data.front().timestamp << " to " << sensor_data.back().timestamp << " seconds" << std::endl;
 
-    // 확인을 위해 첫 번째 데이터 포인트의 내용을 출력
+    // Print the content of the first data point for verification
     const auto &first_data = sensor_data[0];
     double current_timestamp = first_data.timestamp;
     std::cout << "\n--- First Data Point ---" << std::endl;
@@ -35,38 +35,38 @@ int main()
     std::cout << "Odom Pos: " << first_data.odom_position.transpose() << std::endl;
     std::cout << "Odom Vel: " << first_data.odom_linear_vel.transpose() << std::endl;
 
-    // EKF의 초기 상태를 첫 번째 동기화된 센서 데이터로부터 설정
+    // Set the initial state of the EKF from the first synchronized sensor data
     State initial_state = initializeFromSensorData(first_data);
     sensor_data.erase(sensor_data.begin());
 
-    // --- EKF 공분산 행렬들 설정 ---
-    // 초기 상태 공분산 행렬 P: 초기 상태 추정치의 불확실성을 나타냅니다.
-    // 큰 값은 해당 상태에 대한 초기 불확실성이 높다는 것을 의미합니다.
+    // --- Set EKF Covariance Matrices ---
+    // Initial state covariance matrix P: Represents the uncertainty of the initial state estimate.
+    // A large value means high initial uncertainty for that state.
     Eigen::MatrixXd P = Eigen::MatrixXd::Identity(STATE_SIZE, STATE_SIZE);
-    P.diagonal() << 100.0, 100.0, 100.0, // 위치(x, y, z)에 대한 높은 초기 불확실성
-        50.0, 50.0, 50.0,                // 속도(vx, vy, vz)에 대한 중간 수준의 불확실성
-        10.0, 10.0, 10.0,                // 자세(roll, pitch, yaw)에 대한 낮은 불확실성
-        10.0, 10.0, 10.0;                // 각속도(wx, wy, wz)에 대한 낮은 불확실성
+    P.diagonal() << 100.0, 100.0, 100.0, // High initial uncertainty for position (x, y, z)
+        50.0, 50.0, 50.0,                // Medium uncertainty for velocity (vx, vy, vz)
+        10.0, 10.0, 10.0,                // Low uncertainty for attitude (roll, pitch, yaw)
+        10.0, 10.0, 10.0;                // Low uncertainty for angular velocity (wx, wy, wz)
 
-    // 프로세스 노이즈 공분산 행렬 Q: 예측 모델의 불확실성을 나타냅니다.
-    // 예측 단계에서 상태 공분산에 더해지며, 모델이 현실을 얼마나 잘 반영하지 못하는지를 모델링합니다.
+    // Process noise covariance matrix Q: Represents the uncertainty of the prediction model.
+    // It's added to the state covariance in the prediction step and models how well the model reflects reality.
     Eigen::MatrixXd Q = Eigen::MatrixXd::Identity(STATE_SIZE, STATE_SIZE);
-    Q.diagonal() << 10.0, 10.0, 1.0, // 위치 관련 프로세스 노이즈
-        1.0, 1.0, 0.1,               // 속도 관련 프로세스 노이즈
-        0.1, 0.1, 0.01,              // 자세 관련 프로세스 노이즈
-        5.0, 5.0, 0.01;              // 각속도 관련 프로세스 노이즈
+    Q.diagonal() << 10.0, 10.0, 1.0, // Process noise related to position
+        1.0, 1.0, 0.1,               // Process noise related to velocity
+        0.1, 0.1, 0.01,              // Process noise related to attitude
+        5.0, 5.0, 0.01;              // Process noise related to angular velocity
 
-    // 측정 노이즈 공분산 행렬 R: 센서 측정값의 불확실성을 나타냅니다.
-    // 작은 값은 센서 측정을 더 신뢰한다는 의미입니다.
+    // Measurement noise covariance matrix R: Represents the uncertainty of sensor measurements.
+    // A small value means we trust the sensor measurement more.
     Eigen::MatrixXd R = Eigen::MatrixXd::Identity(MEASUREMENT_SIZE, MEASUREMENT_SIZE);
-    R.diagonal() << 0.01, 0.01, 0.001, // 속도 측정(x, y, z)에 대한 노이즈 (오도메트리는 비교적 정확)
-        1.0, 1.0, 1.0;                 // 각속도 측정(wx, wy, wz)에 대한 노이즈
+    R.diagonal() << 0.01, 0.01, 0.001, // Noise for velocity measurement (x, y, z) (odometry is relatively accurate)
+        1.0, 1.0, 1.0;                 // Noise for angular velocity measurement (wx, wy, wz)
 
-    // EKF 객체 생성 및 위에서 설정한 행렬들로 초기화
+    // Create EKF object and initialize with the matrices set above
     EKF ekf;
     ekf.initialize(P, Q, R);
 
-    // --- 공분산 정보 출력 ---
+    // --- Print Covariance Information ---
     std::cout << "\n--- EKF Covariance Matrices ---" << std::endl;
     std::cout << "Initial State Covariance P diagonal:" << std::endl;
     std::cout << P.diagonal().transpose() << std::endl;
@@ -75,18 +75,18 @@ int main()
     std::cout << "\nMeasurement Noise Covariance R diagonal:" << std::endl;
     std::cout << R.diagonal().transpose() << std::endl;
 
-    // --- 초기 상태 출력 ---
+    // --- Print Initial State ---
     std::cout << "\n--- Initial State (from sensor data) ---" << std::endl;
     std::cout << "Position: " << initial_state.position.transpose() << std::endl;
     std::cout << "Velocity: " << initial_state.velocity.transpose() << std::endl;
     std::cout << "Euler Angles (r,p,y): " << initial_state.euler_angles.transpose() << std::endl;
     std::cout << "Angular Velocity: " << initial_state.angular_velocity.transpose() << std::endl;
 
-    // --- CSV 파일 초기화 ---
+    // --- Initialize CSV file ---
     std::string output_dir = "/Users/yeonge/workspace/share/humble/ekf-ws/src/ekf_localizer/build";
     std::string output_file = output_dir + "/ekf_result.csv";
 
-    // build 디렉토리가 없으면 생성
+    // Create build directory if it doesn't exist
     std::filesystem::create_directories(output_dir);
 
     std::ofstream csv_file(output_file);
@@ -96,14 +96,14 @@ int main()
         return -1;
     }
 
-    // CSV 헤더 작성
+    // Write CSV header
     csv_file << "timestamp,"
              << "ekf_pos_x,ekf_pos_y,ekf_pos_z,ekf_vel_x,ekf_vel_y,ekf_vel_z,ekf_roll,ekf_pitch,ekf_yaw,ekf_ang_vel_x,ekf_ang_vel_y,ekf_ang_vel_z,"
              << "odom_pos_x,odom_pos_y,odom_pos_z,odom_vel_x,odom_vel_y,odom_vel_z,odom_roll,odom_pitch,odom_yaw,odom_ang_vel_x,odom_ang_vel_y,odom_ang_vel_z,"
              << "imu_acc_x,imu_acc_y,imu_acc_z,imu_ang_vel_x,imu_ang_vel_y,imu_ang_vel_z,imu_roll,imu_pitch,imu_yaw"
              << std::endl;
 
-    // 초기 상태도 CSV에 저장
+    // Also save the initial state to the CSV
     Eigen::Vector3d initial_odom_euler = quaternionToEuler(first_data.odom_orientation);
     Eigen::Vector3d initial_imu_euler = quaternionToEuler(first_data.imu_orientation);
     csv_file << std::fixed << std::setprecision(6)
@@ -123,29 +123,29 @@ int main()
 
     std::cout << "\nStarting EKF processing and saving results to: " << output_file << std::endl;
 
-    // --- EKF 메인 루프 ---
+    // --- EKF Main Loop ---
     State current_state = initial_state;
     while (!sensor_data.empty())
     {
         const auto &current_data = sensor_data.front();
         double dt = current_data.timestamp - current_timestamp;
 
-        // Predict 단계: IMU 데이터를 입력으로 사용하여 다음 상태를 예측합니다.
+        // Predict step: Predict the next state using IMU data as input.
         auto [predicted_state, P_predicted] = ekf.predict(current_state, current_data.imu_linear_acc,
                                                           current_data.imu_angular_vel, dt);
 
-        // Correction 단계: Odometry 측정값(선형/각속도)을 사용하여 예측된 상태를 보정합니다.
+        // Correction step: Correct the predicted state using Odometry measurements (linear/angular velocity).
         State corrected_state = ekf.correct(predicted_state, current_data.odom_linear_vel,
                                             current_data.odom_angular_vel);
 
-        // 결과를 CSV 파일에 저장
+        // Save results to CSV file
         Eigen::Vector3d corrected_euler = corrected_state.euler_angles;
         Eigen::Vector3d current_odom_euler = quaternionToEuler(current_data.odom_orientation);
         Eigen::Vector3d current_imu_euler = quaternionToEuler(current_data.imu_orientation);
         csv_file << std::fixed << std::setprecision(6)
                  << current_data.timestamp << ","
                  // BUG FIX: predicted_state.position.x() -> corrected_state.position.x()
-                 // 예측값이 아닌 보정된 최종 상태값을 저장해야 일관성이 맞습니다.
+                 // To be consistent, the corrected final state value must be saved, not the predicted value.
                  << corrected_state.position.x() << "," << corrected_state.position.y() << "," << corrected_state.position.z() << ","
                  << corrected_state.velocity.x() << "," << corrected_state.velocity.y() << "," << corrected_state.velocity.z() << ","
                  << corrected_euler.x() << "," << corrected_euler.y() << "," << corrected_euler.z() << ","
@@ -159,7 +159,7 @@ int main()
                  << current_imu_euler.x() << "," << current_imu_euler.y() << "," << current_imu_euler.z()
                  << std::endl;
 
-        // 다음 iteration을 위해 상태 업데이트
+        // Update state for the next iteration
         current_state = corrected_state;
         current_timestamp = current_data.timestamp;
 
@@ -171,7 +171,7 @@ int main()
         }
     }
 
-    // CSV 파일 닫기
+    // Close CSV file
     csv_file.close();
     std::cout << "EKF processing completed. Results saved to: " << output_file << std::endl;
 

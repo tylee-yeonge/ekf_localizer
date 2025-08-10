@@ -6,6 +6,14 @@
 #include <set>
 #include <algorithm>
 
+/**
+ * @brief Reads a CSV file and returns it as a vector of (timestamp, value) pairs.
+ *
+ * @param filename Path to the CSV file to be read.
+ * @return std::vector<std::pair<double, double>> A vector of data pairs (timestamp, value).
+ * @details Each line of the file is expected to follow the format "timestamp, unused_timestamp, topic, value".
+ *          It automatically skips the header if the first line is a header.
+ */
 std::vector<std::pair<double, double>> readCSV(const std::string &filename)
 {
     std::vector<std::pair<double, double>> data;
@@ -18,10 +26,10 @@ std::vector<std::pair<double, double>> readCSV(const std::string &filename)
         return data;
     }
 
-    // 첫 번째 줄이 헤더인 경우 건너뛰기 위한 로직
+    // Logic to skip the header if it exists
     if (std::getline(file, line))
     {
-        // 첫 번째 줄의 첫 토큰이 숫자인지 확인
+        // Check if the first token of the first line is a number
         std::istringstream iss(line);
         std::string first_token;
         if (std::getline(iss, first_token, ','))
@@ -29,12 +37,12 @@ std::vector<std::pair<double, double>> readCSV(const std::string &filename)
             try
             {
                 std::stod(first_token);
-                // 성공적으로 숫자로 변환되면 데이터 줄이므로, 파일 포인터를 처음으로 되돌림
+                // If conversion to number is successful, it's a data line, so reset file pointer to the beginning
                 file.seekg(0);
             }
             catch (const std::exception &)
             {
-                // 숫자가 아니면 헤더로 간주하고 아무것도 하지 않음 (다음 줄부터 읽기 시작)
+                // If not a number, assume it's a header and do nothing (start reading from the next line)
             }
         }
     }
@@ -44,7 +52,7 @@ std::vector<std::pair<double, double>> readCSV(const std::string &filename)
         std::istringstream iss(line);
         std::string timestamp_str, unused_timestamp, unused_topic, value_str;
 
-        // CSV 형식 파싱: timestamp, unused_timestamp, topic, value
+        // Parse CSV format: timestamp, unused_timestamp, topic, value
         if (std::getline(iss, timestamp_str, ',') &&
             std::getline(iss, unused_timestamp, ',') &&
             std::getline(iss, unused_topic, ',') &&
@@ -52,7 +60,7 @@ std::vector<std::pair<double, double>> readCSV(const std::string &filename)
         {
             try
             {
-                // 문자열을 double 타입으로 변환하여 저장
+                // Convert string to double and store
                 double timestamp = std::stod(timestamp_str);
                 double value = std::stod(value_str);
                 data.emplace_back(timestamp, value);
@@ -69,9 +77,21 @@ std::vector<std::pair<double, double>> readCSV(const std::string &filename)
     return data;
 }
 
+/**
+ * @brief Loads all sensor data CSV files from the specified path and synchronizes them by timestamp.
+ *
+ * @param data_path Directory path where the sensor data CSV files are located.
+ * @return std.vector<SensorData> A vector of synchronized sensor data.
+ * @details
+ * 1. Reads all CSV files for each sensor (IMU, Odometry).
+ * 2. Collects all timestamps, using the IMU accelerometer (`imu_acc_x`) timestamps as the reference.
+ * 3. For each collected timestamp, it estimates the values of all other sensors using linear interpolation.
+ * 4. The synchronized data is stored in `SensorData` structs and returned as a vector.
+ *    This allows processing sensor data collected at different frequencies on the same time axis.
+ */
 std::vector<SensorData> loadAllSensorData(const std::string &data_path)
 {
-    // 각 센서 데이터 파일 읽어오기
+    // Read each sensor data file
     auto imu_acc_x = readCSV(data_path + "/imu_linear_acc_x.csv");
     auto imu_acc_y = readCSV(data_path + "/imu_linear_acc_y.csv");
     auto imu_acc_z = readCSV(data_path + "/imu_linear_acc_z.csv");
@@ -102,7 +122,7 @@ std::vector<SensorData> loadAllSensorData(const std::string &data_path)
     auto odom_ori_z = readCSV(data_path + "/odom_orientation_z.csv");
     auto odom_ori_w = readCSV(data_path + "/odom_orientation_w.csv");
 
-    // 모든 타임스탬프 수집 및 정렬
+    // Collect and sort all timestamps
     std::set<double> all_timestamps;
 
     // Only use timestamps from imu_acc_x
@@ -111,7 +131,7 @@ std::vector<SensorData> loadAllSensorData(const std::string &data_path)
         all_timestamps.insert(point.first);
     }
 
-    // 보간 함수 (선형 보간)
+    // Interpolation function (linear interpolation)
     auto interpolate = [](const std::vector<std::pair<double, double>> &data, double timestamp) -> double
     {
         if (data.empty())
@@ -119,37 +139,37 @@ std::vector<SensorData> loadAllSensorData(const std::string &data_path)
         if (data.size() == 1)
             return data[0].second;
 
-        // 타임스탬프가 데이터 범위를 벗어나면, 경계 값을 반환하여 외삽(extrapolation)을 방지합니다.
+        // If the timestamp is outside the data range, return the boundary value to prevent extrapolation.
         if (timestamp <= data.front().first)
             return data.front().second;
         if (timestamp >= data.back().first)
             return data.back().second;
 
-        // `std::lower_bound`를 사용한 이진 탐색으로 해당 타임스탬프 구간을 효율적으로 찾습니다.
+        // Efficiently find the timestamp interval using binary search with `std::lower_bound`.
         auto it = std::lower_bound(data.begin(), data.end(), std::make_pair(timestamp, 0.0));
         if (it == data.begin())
             return it->second;
 
         auto it_prev = it - 1;
 
-        // 두 타임스탬프 사이의 값을 선형 보간합니다.
+        // Linearly interpolate the value between two timestamps.
         // v = v1 + (t - t1) * (v2 - v1) / (t2 - t1)
         double t1 = it_prev->first, v1 = it_prev->second;
         double t2 = it->first, v2 = it->second;
-        // timestamp가 t1과 t2 사이에 얼마나 가까운지를 비율로 계산
+        // Calculate the ratio of how close the timestamp is to t1 and t2
         double ratio = (timestamp - t1) / (t2 - t1);
 
         return v1 + ratio * (v2 - v1);
     };
 
-    // 시간 동기화된 센서 데이터 생성
+    // Create time-synchronized sensor data
     std::vector<SensorData> sensor_data;
     for (double timestamp : all_timestamps)
     {
         SensorData data;
         data.timestamp = timestamp;
 
-        // IMU 데이터 보간
+        // Interpolate IMU data
         data.imu_linear_acc = Eigen::Vector3d(
             interpolate(imu_acc_x, timestamp),
             interpolate(imu_acc_y, timestamp),
@@ -166,7 +186,7 @@ std::vector<SensorData> loadAllSensorData(const std::string &data_path)
             interpolate(imu_ori_y, timestamp),
             interpolate(imu_ori_z, timestamp));
 
-        // Odometry 데이터 보간
+        // Interpolate Odometry data
         data.odom_position = Eigen::Vector3d(
             interpolate(odom_pos_x, timestamp),
             interpolate(odom_pos_y, timestamp),
@@ -195,20 +215,31 @@ std::vector<SensorData> loadAllSensorData(const std::string &data_path)
     return sensor_data;
 }
 
+/**
+ * @brief Sets the initial state of the EKF from the first sensor data point.
+ *
+ * @param initial_sensor_data The first element of the synchronized sensor data vector.
+ * @return State The initial state for the EKF.
+ * @details
+ * - Position: Uses the odometry position values. Odometry typically provides position relative to the world frame, making it suitable for initialization.
+ * - Velocity: Uses the odometry linear velocity values.
+ * - Attitude (euler_angles): Converts the IMU's orientation (quaternion) to Euler angles. The IMU can provide a more accurate initial attitude as it measures orientation relative to gravity.
+ * - Angular Velocity: Uses the IMU's angular velocity values.
+ */
 State initializeFromSensorData(const SensorData &initial_sensor_data)
 {
     State initial_state;
 
-    // 오도메트리 데이터로부터 초기 위치 설정
+    // Set initial position from odometry data
     initial_state.position = initial_sensor_data.odom_position;
 
-    // 오도메트리 데이터로부터 초기 속도 설정
+    // Set initial velocity from odometry data
     initial_state.velocity = initial_sensor_data.odom_linear_vel;
 
-    // IMU 쿼터니언을 오일러 각으로 변환하여 초기 자세 설정
+    // Convert IMU quaternion to Euler angles to set initial attitude
     initial_state.euler_angles = quaternionToEuler(initial_sensor_data.imu_orientation);
 
-    // IMU 각속도로 초기 각속도 설정
+    // Set initial angular velocity from IMU data
     initial_state.angular_velocity = initial_sensor_data.imu_angular_vel;
 
     return initial_state;

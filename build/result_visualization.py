@@ -1068,7 +1068,7 @@ class EKFResultVisualizer:
 
         # --- 2D trajectory plot (X-Y plane) with progression indication ---
 
-        # 1) Odom(참조) 경로를 희미한 회색 선으로 표시
+        # 1) Display Odom (reference) path as a faint gray line
         ax.plot(
             self.data["true_x"],
             self.data["true_y"],
@@ -1078,7 +1078,7 @@ class EKFResultVisualizer:
             alpha=0.6,
         )
 
-        # 2) EKF 궤적을 시간(color) 기반으로 그려 진행 순서를 색상으로 표현
+        # 2) Draw EKF trajectory based on time (color) to represent progression
         sc = ax.scatter(
             self.data["est_x"],
             self.data["est_y"],
@@ -1089,12 +1089,12 @@ class EKFResultVisualizer:
             label="EKF Trajectory",
         )
 
-        # 색상 막대 추가
+        # Add a color bar
         cbar = plt.colorbar(sc, ax=ax)
         cbar.set_label("Time (s)")
 
-        # 3) 일정 간격마다 화살표를 추가해 진행 방향을 더욱 명확히 표시
-        arrow_step = max(1, len(self.data) // 30)  # 약 30개 화살표
+        # 3) Add arrows at regular intervals to more clearly indicate the direction of travel
+        arrow_step = max(1, len(self.data) // 30)  # About 30 arrows
         x = self.data["est_x"].values
         y = self.data["est_y"].values
         dx = np.diff(x)
